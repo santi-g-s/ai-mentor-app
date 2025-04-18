@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 33% 97%;
+    --foreground: 20 14.3% 4.1%;
+
+    --card: 36 33% 97%;
+    --card-foreground: 20 14.3% 4.1%;
+
+    --popover: 36 33% 97%;
+    --popover-foreground: 20 14.3% 4.1%;
+
+    --primary: 147 42% 22%;
+    --primary-foreground: 36 33% 97%;
+
+    --secondary: 36 33% 90%;
+    --secondary-foreground: 20 14.3% 4.1%;
+
+    --muted: 36 33% 90%;
+    --muted-foreground: 20 5.9% 40.1%;
+
+    --accent: 36 33% 90%;
+    --accent-foreground: 20 14.3% 4.1%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 36 33% 97%;
+
+    --border: 20 5.9% 90%;
+    --input: 20 5.9% 90%;
+    --ring: 147 42% 22%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 20 14.3% 4.1%;
+    --foreground: 36 33% 97%;
+
+    --card: 20 14.3% 4.1%;
+    --card-foreground: 36 33% 97%;
+
+    --popover: 20 14.3% 4.1%;
+    --popover-foreground: 36 33% 97%;
+
+    --primary: 147 42% 22%;
+    --primary-foreground: 36 33% 97%;
+
+    --secondary: 20 9.5% 10%;
+    --secondary-foreground: 36 33% 97%;
+
+    --muted: 20 9.5% 10%;
+    --muted-foreground: 20 5.9% 70%;
+
+    --accent: 20 9.5% 10%;
+    --accent-foreground: 36 33% 97%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 36 33% 97%;
+
+    --border: 20 9.5% 15%;
+    --input: 20 9.5% 15%;
+    --ring: 147 42% 22%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.blob {
+  animation: blob-pulse 4s infinite ease-in-out;
+  filter: blur(10px);
+}
+
+@keyframes blob-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.blob-container {
+  position: relative;
+  width: 200px;
+  height: 200px;
+}
+
+.blob-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--primary);
+  border-radius: 40% 60% 60% 40% / 60% 30% 70% 40%;
+  animation: blob-morph 8s linear infinite;
+}
+
+.blob-container::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--primary);
+  border-radius: 40% 60% 60% 40% / 60% 30% 70% 40%;
+  animation: blob-morph 8s linear infinite;
+  animation-delay: -4s;
+  opacity: 0.7;
+}
+
+@keyframes blob-morph {
+  0% {
+    border-radius: 40% 60% 60% 40% / 60% 30% 70% 40%;
+  }
+  25% {
+    border-radius: 40% 60% 30% 70% / 50% 60% 40% 50%;
+  }
+  50% {
+    border-radius: 60% 40% 40% 60% / 40% 50% 50% 60%;
+  }
+  75% {
+    border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%;
+  }
+  100% {
+    border-radius: 40% 60% 60% 40% / 60% 30% 70% 40%;
+  }
+}
