@@ -31,6 +31,43 @@ export function SessionView() {
   const animationFrameRef = useRef<number | null>(null);
   const { toast } = useToast();
 
+  // Complete session function
+  const completeSession = async () => {
+    if (sessionId && startTime) {
+      const endTime = new Date();
+      const durationInSeconds = Math.floor(
+        (endTime.getTime() - startTime.getTime()) / 1000
+      );
+
+      try {
+        await fetch(`/api/sessions/${sessionId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            duration: durationInSeconds,
+            transcript,
+            status: "complete",
+          }),
+        });
+
+        setSessionStatus("complete");
+        toast({
+          title: "Session completed",
+          description: `Session duration: ${durationInSeconds} seconds`,
+        });
+      } catch (error) {
+        console.error("Error completing session:", error);
+        toast({
+          title: "Error",
+          description: "Failed to complete session",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
   // Initialize session when component mounts
   useEffect(() => {
     const initSession = async () => {
@@ -69,7 +106,7 @@ export function SessionView() {
 
     // When component unmounts, update the session with final data
     return () => {
-      if (sessionId && startTime) {
+      if (sessionId && startTime && sessionStatus !== "complete") {
         const endTime = new Date();
         const durationInSeconds = Math.floor(
           (endTime.getTime() - startTime.getTime()) / 1000
@@ -89,8 +126,6 @@ export function SessionView() {
         }).catch((error) => {
           console.error("Error updating session:", error);
         });
-
-        setSessionStatus("complete");
       }
     };
   }, []);
@@ -469,6 +504,18 @@ export function SessionView() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* End session button (shown when session is active) */}
+      {sessionStatus === "active" && (
+        <div className="absolute top-4 right-4">
+          <button
+            onClick={completeSession}
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-sm font-medium transition-colors"
+          >
+            End Session
+          </button>
         </div>
       )}
 
