@@ -21,7 +21,7 @@ export async function POST(request) {
     // });
 
     // Generate response with streaming for lower latency
-    let fullResponse = "Here is the response";
+    let fullResponse = "Here is an example response";
     // const stream = await openai.chat.completions.create({
     //   model: "meta-llama/Llama-3.1-8B-Instruct", // Use Goodfire's model
     //   messages: [

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import speech from "@google-cloud/speech";
+import fs from "fs";
+import path from "path";
 
 export async function POST(request) {
   try {
@@ -13,7 +15,18 @@ export async function POST(request) {
     }
 
     // Initialize Google client with credentials
-    let client = new speech.SpeechClient();
+    let client;
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      // Read credentials from the file path in the environment variable
+      const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      const credentials = JSON.parse(
+        fs.readFileSync(path.resolve(credentialsPath), "utf8")
+      );
+
+      client = new speech.SpeechClient({
+        credentials,
+      });
+    }
 
     const audio = {
       content: audioContent,
