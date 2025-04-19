@@ -5,6 +5,10 @@ import path from "path";
 
 export async function POST(request) {
   try {
+    const response2 = await fetch("http://127.0.0.1:8000/api/hello");
+    const data2 = await response2.json();
+    console.log(data2); // { message: "Hello from FastAPI!" }
+
     const { input, variantName = "tough" } = await request.json();
 
     if (!input) {
