@@ -31,6 +31,29 @@ export function SessionView() {
   const animationFrameRef = useRef<number | null>(null);
   const { toast } = useToast();
 
+  // Generate title from transcript
+  const generateTitle = async (transcript: string): Promise<string> => {
+    try {
+      const response = await fetch("/api/generate-title", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ input: transcript }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate title");
+      }
+
+      const data = await response.json();
+      return data.title || "Untitled Session";
+    } catch (error) {
+      console.error("Error generating title:", error);
+      return "Untitled Session";
+    }
+  };
+
   // Complete session function
   const completeSession = async () => {
     // Stop any playing audio
@@ -43,10 +66,14 @@ export function SessionView() {
       );
 
       try {
-        // Generate tags based on the transcript
-        const tags = await generateTags(transcript);
+        // Generate tags and title concurrently
+        const [tags, title] = await Promise.all([
+          generateTags(transcript),
+          generateTitle(transcript),
+        ]);
 
         console.log("DEBUG: Tags generated", tags);
+        console.log("DEBUG: Title generated", title);
 
         await fetch(`/api/sessions/${sessionId}`, {
           method: "PUT",
@@ -58,13 +85,14 @@ export function SessionView() {
             transcript,
             status: "complete",
             tags,
+            title,
           }),
         });
 
         setSessionStatus("complete");
         toast({
           title: "Session completed",
-          description: `Session duration: ${durationInSeconds} seconds`,
+          description: `Session "${title}" saved. Duration: ${durationInSeconds} seconds`,
         });
 
         // Reset state and create a new session
@@ -450,7 +478,7 @@ export function SessionView() {
       // Process the text in parallel with speaking the filler
       // Get the variant value from the selected profile
       let variantName = "variant_base"; // Default
-      
+
       // Map selected profile to variant
       if (selectedProfile === "Kai") {
         variantName = "variant_comfort";
@@ -461,7 +489,7 @@ export function SessionView() {
       } else if (selectedProfile === "Tenzin") {
         variantName = "variant_tough";
       }
-      
+
       const response = await fetch("/api/process-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -542,7 +570,7 @@ export function SessionView() {
     try {
       // Get the variant value from the selected profile
       let variant = "variant_base"; // Default
-      
+
       // Map selected profile to variant
       if (selectedProfile === "Kai") {
         variant = "variant_comfort";
@@ -553,7 +581,7 @@ export function SessionView() {
       } else if (selectedProfile === "Tenzin") {
         variant = "variant_tough";
       }
-      
+
       const response = await fetch("/api/text-to-speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

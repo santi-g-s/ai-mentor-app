@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
           duration: body.duration || 0,
           status: body.status || "created",
           tags: body.tags || [],
+          title: body.title || "Untitled Session",
         },
       ])
       .select();

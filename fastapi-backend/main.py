@@ -109,14 +109,13 @@ Output: ["analytical", "technical", "reflective"]
 
 !!!IMPORTANT: ONLY OUTPUT THE LIST OF TAGS, NO OTHER TEXT OR FORMATTING.
 !!!THE FORMAT SHOULD BE EXACTLY: ["tag1", "tag2", "tag3"]
-
----
-Here is the list of features:
-{features_string}
-        """
+"""
 
         response = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": features_string},
+            ],
             model="meta-llama/Meta-Llama-3.1-8B-Instruct",
             max_completion_tokens=500,
         )

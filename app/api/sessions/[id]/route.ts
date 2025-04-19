@@ -22,6 +22,7 @@ export async function PUT(
         ...(body.timestamp && { timestamp: body.timestamp }),
         ...(body.status && { status: body.status }),
         ...(body.tags && { tags: body.tags }),
+        ...(body.title && { title: body.title }),
       })
       .eq("id", id)
       .select();

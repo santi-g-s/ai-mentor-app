@@ -15,7 +15,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export type Session = {
   id: string;
   timestamp: string;
-  transcript: string;
+  transcript?: string;
   profile: string;
-  duration: number;
+  duration?: number;
+  status: string;
+  tags?: string[];
+  title: string;
 };
