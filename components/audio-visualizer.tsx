@@ -25,7 +25,7 @@ export function AudioVisualizer({
   }, [amplitude]);
 
   // Base size for the static circle
-  const baseSize = 200;
+  const baseSize = 150;
 
   // Calculate blob parameters based on amplitude
   const edges = 12; // Number of edges for the blob
