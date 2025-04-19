@@ -387,7 +387,7 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
             className="h-14 bg-primary rounded-full overflow-hidden relative flex items-center justify-center cursor-pointer shadow-md"
           >
             <div
-              className="h-10 bg-white rounded-full transition-all duration-30"
+              className="h-10 bg-white rounded-full transition-all duration-[30ms]"
               style={{ width: getVolumeBarWidth() }}
             ></div>
           </div>

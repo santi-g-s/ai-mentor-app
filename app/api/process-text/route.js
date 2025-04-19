@@ -18,19 +18,23 @@ export async function POST(request) {
     console.log("Using variant:", variantName);
 
     // Load the variant JSON file
-    const variantPath = path.join(process.cwd(), "variants", `variant_${variantName}.json`);
+    const variantPath = path.join(
+      process.cwd(),
+      "variants",
+      `variant_${variantName}.json`
+    );
     console.log(variantPath);
-    
+
     if (!fs.existsSync(variantPath)) {
       return NextResponse.json(
         { error: `Variant '${variantName}' not found` },
         { status: 400 }
       );
     }
-    
-    const variantData = JSON.parse(fs.readFileSync(variantPath, 'utf8'));
+
+    const variantData = JSON.parse(fs.readFileSync(variantPath, "utf8"));
     console.log(variantData);
-    
+
     // Initialize the OpenAI client but configure for Goodfire
     const openai = new OpenAI({
       apiKey: process.env.GOODFIRE_API_KEY,
@@ -48,7 +52,7 @@ export async function POST(request) {
         },
       ],
       stream: true,
-      max_tokens: 100, // Lower token count for faster responses
+      max_tokens: 1000, // Lower token count for faster responses
       variant: variantData, // Pass the variant data directly in the request
     });
 
