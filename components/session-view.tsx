@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { MicrophoneBar } from "@/components/microphone-bar";
 import { AudioVisualizer } from "@/components/audio-visualizer";
+import { v4 as uuidv4 } from "uuid";
 
 // Add AudioContext type definition for cross-browser compatibility
 declare global {
@@ -17,12 +18,92 @@ export function SessionView() {
   const [response, setResponse] = useState("");
   const [amplitude, setAmplitude] = useState(0);
   const [selectedProfile, setSelectedProfile] = useState("Robin");
+  const [sessionId, setSessionId] = useState<string>("");
+  const [startTime, setStartTime] = useState<Date | null>(null);
+
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const { toast } = useToast();
+
+  // Initialize session when component mounts
+  useEffect(() => {
+    const initSession = async () => {
+      const id = uuidv4();
+      const timestamp = new Date().toISOString();
+
+      try {
+        // Create a new session in Supabase
+        const response = await fetch("/api/sessions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id,
+            timestamp,
+            transcript: "",
+            profile: selectedProfile,
+            duration: 0,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to create session");
+        }
+
+        setSessionId(id);
+        setStartTime(new Date());
+      } catch (error) {
+        console.error("Error creating session:", error);
+      }
+    };
+
+    initSession();
+
+    // When component unmounts, update the session with final data
+    return () => {
+      if (sessionId && startTime) {
+        const endTime = new Date();
+        const durationInSeconds = Math.floor(
+          (endTime.getTime() - startTime.getTime()) / 1000
+        );
+
+        // Save the session data when navigating away
+        fetch(`/api/sessions/${sessionId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            duration: durationInSeconds,
+            transcript,
+          }),
+        }).catch((error) => {
+          console.error("Error updating session:", error);
+        });
+      }
+    };
+  }, []);
+
+  // Update session when profile changes
+  useEffect(() => {
+    if (sessionId && selectedProfile) {
+      fetch(`/api/sessions/${sessionId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          profile: selectedProfile,
+        }),
+      }).catch((error) => {
+        console.error("Error updating profile:", error);
+      });
+    }
+  }, [sessionId, selectedProfile]);
 
   // Initialize audio element and Web Audio API for playback and analysis
   useEffect(() => {
@@ -188,7 +269,29 @@ export function SessionView() {
   const processText = async (text: string) => {
     if (!text) return;
 
-    setTranscript(text);
+    // Append user's message to transcript with proper formatting
+    const updatedTranscript = transcript
+      ? `${transcript}\n\n<user>${text}</user>`
+      : `<user>${text}</user>`;
+
+    setTranscript(updatedTranscript);
+
+    // Update transcript in session (just the user part for now)
+    if (sessionId) {
+      try {
+        await fetch(`/api/sessions/${sessionId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            transcript: updatedTranscript,
+          }),
+        });
+      } catch (error) {
+        console.error("Error updating transcript:", error);
+      }
+    }
 
     try {
       const response = await fetch("/api/process-text", {
@@ -199,6 +302,27 @@ export function SessionView() {
 
       const data = await response.json();
       setResponse(data.output);
+
+      // Append the assistant's response to the transcript
+      const finalTranscript = `${updatedTranscript}\n\n<assistant>${data.output}</assistant>`;
+      setTranscript(finalTranscript);
+
+      // Update the session with the complete conversation
+      if (sessionId) {
+        try {
+          await fetch(`/api/sessions/${sessionId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              transcript: finalTranscript,
+            }),
+          });
+        } catch (error) {
+          console.error("Error updating transcript with response:", error);
+        }
+      }
 
       // Use TTS for the response
       await speakResponse(data.output);

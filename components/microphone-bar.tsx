@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Mic, Send } from "lucide-react";
 
 type MicrophoneBarProps = {
-  onTranscriptReady: (transcript: string) => Promise<void>;
+  onTranscriptReady: (transcript: string) => void;
 };
 
 export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
@@ -297,7 +297,7 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
           const data = await response.json();
 
           if (data.transcript) {
-            await onTranscriptReady(data.transcript);
+            onTranscriptReady(data.transcript);
           } else if (data.error) {
             setErrorMessage(`Transcription error: ${data.error}`);
             toast({
@@ -352,7 +352,7 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
 
     try {
       setIsProcessing(true);
-      await onTranscriptReady(textInput.trim());
+      onTranscriptReady(textInput.trim());
       setTextInput("");
     } catch (error: any) {
       console.error("Error submitting text input:", error);
