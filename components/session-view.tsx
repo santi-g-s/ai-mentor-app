@@ -43,6 +43,11 @@ export function SessionView() {
       );
 
       try {
+        // Generate tags based on the transcript
+        const tags = await generateTags(transcript);
+
+        console.log("DEBUG: Tags generated", tags);
+
         await fetch(`/api/sessions/${sessionId}`, {
           method: "PUT",
           headers: {
@@ -52,6 +57,7 @@ export function SessionView() {
             duration: durationInSeconds,
             transcript,
             status: "complete",
+            tags,
           }),
         });
 
@@ -74,6 +80,30 @@ export function SessionView() {
           variant: "destructive",
         });
       }
+    }
+  };
+
+  // Generate tags from transcript
+  const generateTags = async (transcript: string): Promise<string[]> => {
+    try {
+      const response = await fetch("/api/generate-tags", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ input: transcript }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate tags");
+      }
+
+      const data = await response.json();
+
+      return data.tags;
+    } catch (error) {
+      console.error("Error generating tags:", error);
+      return [];
     }
   };
 
