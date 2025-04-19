@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Clock, CheckCircle2, ChevronRight } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  CheckCircle2,
+  ChevronRight,
+  CloudSun,
+} from "lucide-react";
 import Link from "next/link";
 import {
   Card,
@@ -40,6 +46,8 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [sessions, setSessions] = useState<FormattedSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [weeklySummary, setWeeklySummary] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(true);
 
   // Fetch sessions from Supabase
   useEffect(() => {
@@ -75,6 +83,30 @@ export function Dashboard() {
     fetchSessions();
   }, []);
 
+  // Fetch weekly summary
+  useEffect(() => {
+    async function fetchWeeklySummary() {
+      try {
+        setSummaryLoading(true);
+        const response = await fetch("/api/weekly-summary");
+        const data = await response.json();
+
+        if (data.summary) {
+          setWeeklySummary(data.summary);
+        } else {
+          setWeeklySummary("No summary available for this week.");
+        }
+      } catch (error) {
+        console.error("Error fetching weekly summary:", error);
+        setWeeklySummary("Unable to load weekly summary.");
+      } finally {
+        setSummaryLoading(false);
+      }
+    }
+
+    fetchWeeklySummary();
+  }, []);
+
   // Helper function to format date
   const formatDate = (date: Date): string => {
     const now = new Date();
@@ -101,6 +133,23 @@ export function Dashboard() {
     });
   };
 
+  // Set goal for weekly sessions
+  const WEEKLY_SESSIONS_GOAL = 20;
+
+  // Calculate weekly progress percentage
+  const calculateWeeklyProgress = () => {
+    // Get current sessions count
+    const currentSessionsCount = sessions.length;
+
+    // Calculate percentage (capped at 100%)
+    const percentage = Math.min(
+      Math.round((currentSessionsCount / WEEKLY_SESSIONS_GOAL) * 100),
+      100
+    );
+
+    return percentage;
+  };
+
   // Mock data
   const actionItems = [
     { id: 1, text: "Practice time management techniques", completed: false },
@@ -113,7 +162,7 @@ export function Dashboard() {
     sessionsCompleted: sessions.length,
     actionsCompleted: 8,
     totalActions: 15,
-    weeklyProgress: 65,
+    weeklyProgress: calculateWeeklyProgress(),
   };
 
   return (
@@ -138,6 +187,24 @@ export function Dashboard() {
 
         <TabsContent value="overview" className="space-y-4">
           <Card>
+            <CardHeader className="pb-4">
+              <CloudSun className="h-10 w-10 text-primary mb-4" />
+              <CardTitle className="text-lg flex align-baseline gap-2 ">
+                Weekly Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {summaryLoading ? (
+                <div className="py-4 text-center text-muted-foreground">
+                  Loading weekly summary...
+                </div>
+              ) : (
+                <p className="text-md">{weeklySummary}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">Progress</CardTitle>
             </CardHeader>
@@ -145,7 +212,10 @@ export function Dashboard() {
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between mb-1">
-                    <span className="text-sm">Weekly Goal</span>
+                    <span className="text-sm">
+                      Weekly Goal ({sessions.length}/{WEEKLY_SESSIONS_GOAL}{" "}
+                      sessions)
+                    </span>
                     <span className="text-sm font-medium">
                       {stats.weeklyProgress}%
                     </span>
@@ -172,52 +242,6 @@ export function Dashboard() {
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Recent Sessions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="py-4 text-center text-muted-foreground">
-                  Loading sessions...
-                </div>
-              ) : sessions.length > 0 ? (
-                <div className="space-y-2">
-                  {sessions.slice(0, 2).map((session) => (
-                    <Link
-                      key={session.id}
-                      href={`/dashboard/session/${session.id}`}
-                      className="flex justify-between items-center py-2  last:border-0 hover:bg-muted/50 rounded-md transition-colors"
-                    >
-                      <div>
-                        <p className="font-medium">{session.topic}</p>
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          <span>{session.date}</span>
-                          <Clock className="h-3 w-3 ml-2 mr-1" />
-                          <span>{session.duration}</span>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-4 text-center text-muted-foreground">
-                  No completed sessions yet
-                </div>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full mt-2"
-                onClick={() => setActiveTab("history")}
-              >
-                View All
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
