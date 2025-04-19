@@ -7,9 +7,13 @@ import { Mic, Send } from "lucide-react";
 
 type MicrophoneBarProps = {
   onTranscriptReady: (transcript: string) => void;
+  onRecordingStart?: () => void;
 };
 
-export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
+export function MicrophoneBar({
+  onTranscriptReady,
+  onRecordingStart,
+}: MicrophoneBarProps) {
   const [textInput, setTextInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -167,6 +171,10 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
 
   const startRecording = async () => {
     setErrorMessage("");
+
+    if (onRecordingStart) {
+      onRecordingStart();
+    }
 
     if (permissionStatus !== "granted") {
       const permissionGranted = await requestMicrophonePermission();
@@ -352,6 +360,9 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
 
     try {
       setIsProcessing(true);
+      if (onRecordingStart) {
+        onRecordingStart();
+      }
       onTranscriptReady(textInput.trim());
       setTextInput("");
     } catch (error: any) {

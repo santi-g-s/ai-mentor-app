@@ -29,7 +29,7 @@ export function AudioVisualizer({
   useEffect(() => {
     // Rotation animation loop
     const animateRotation = () => {
-      setRotation((prev) => (prev + 0.05) % 360);
+      setRotation((prev) => prev + 0.05);
       animationFrameRef.current = requestAnimationFrame(animateRotation);
     };
 
@@ -79,7 +79,7 @@ export function AudioVisualizer({
 
           return (
             <div
-              className={`flex absolute w-[${baseSize}px] h-[${baseSize}px] z-[${i}] transition-all duration-[50ms]`}
+              className={`flex absolute w-[${baseSize}px] h-[${baseSize}px] z-[${i}] transition-scale duration-[50ms]`}
               style={{
                 transform: `scale(${scale}) rotate(${rotation}deg)`,
               }}

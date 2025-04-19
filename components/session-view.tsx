@@ -307,9 +307,20 @@ export function SessionView() {
     return new Blob(byteArrays, { type: mimeType });
   };
 
+  // Stop any playing audio
+  const stopAudio = () => {
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+    }
+  };
+
   // Process transcript with AI
   const processText = async (text: string) => {
     if (!text) return;
+
+    // Stop any playing audio when new input is received
+    stopAudio();
 
     // If this is the first message, update status to active
     if (sessionStatus === "created") {
@@ -520,7 +531,10 @@ export function SessionView() {
       )}
 
       {/* Bottom microphone bar */}
-      <MicrophoneBar onTranscriptReady={processText} />
+      <MicrophoneBar
+        onTranscriptReady={processText}
+        onRecordingStart={stopAudio}
+      />
     </div>
   );
 }
