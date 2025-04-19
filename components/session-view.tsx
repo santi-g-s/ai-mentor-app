@@ -3,20 +3,165 @@
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { MicrophoneBar } from "@/components/microphone-bar";
+import { AudioVisualizer } from "@/components/audio-visualizer";
+
+// Add AudioContext type definition for cross-browser compatibility
+declare global {
+  interface Window {
+    webkitAudioContext: typeof AudioContext;
+  }
+}
 
 export function SessionView() {
   const [transcript, setTranscript] = useState("");
   const [response, setResponse] = useState("");
+  const [amplitude, setAmplitude] = useState(0);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const { toast } = useToast();
 
-  // Initialize audio element for playback
+  // Initialize audio element and Web Audio API for playback and analysis
   useEffect(() => {
     if (typeof window !== "undefined" && !audioElementRef.current) {
+      console.log("DEBUG: Creating audio element and context");
       const audioEl = new Audio();
+      audioEl.addEventListener("play", () => {
+        console.log("DEBUG: Audio started playing");
+        startVisualization();
+      });
+      audioEl.addEventListener("pause", () => {
+        console.log("DEBUG: Audio paused");
+        stopVisualization();
+      });
+      audioEl.addEventListener("ended", () => {
+        console.log("DEBUG: Audio ended");
+        stopVisualization();
+      });
       audioElementRef.current = audioEl;
+
+      // Create audio context and analyzer
+      try {
+        const AudioContextClass =
+          window.AudioContext || window.webkitAudioContext;
+        audioContextRef.current = new AudioContextClass();
+        console.log(
+          "DEBUG: AudioContext created",
+          audioContextRef.current.state
+        );
+
+        if (audioContextRef.current) {
+          analyserRef.current = audioContextRef.current.createAnalyser();
+          analyserRef.current.fftSize = 256;
+          console.log(
+            "DEBUG: Analyser created with fftSize",
+            analyserRef.current.fftSize
+          );
+        }
+      } catch (error) {
+        console.error("DEBUG: Error creating audio context", error);
+      }
     }
+
+    return () => {
+      console.log("DEBUG: Cleaning up audio resources");
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      if (audioElementRef.current) {
+        audioElementRef.current.removeEventListener("play", startVisualization);
+        audioElementRef.current.removeEventListener("pause", stopVisualization);
+        audioElementRef.current.removeEventListener("ended", stopVisualization);
+      }
+
+      if (sourceNodeRef.current) {
+        sourceNodeRef.current.disconnect();
+      }
+
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
   }, []);
+
+  // Start visualization when audio plays
+  const startVisualization = () => {
+    console.log("DEBUG: Starting visualization");
+    if (
+      !audioContextRef.current ||
+      !audioElementRef.current ||
+      !analyserRef.current
+    ) {
+      console.error("DEBUG: Missing required refs for visualization", {
+        context: !!audioContextRef.current,
+        audio: !!audioElementRef.current,
+        analyser: !!analyserRef.current,
+      });
+      return;
+    }
+
+    // Connect audio to analyzer if not already connected
+    try {
+      if (!sourceNodeRef.current) {
+        console.log("DEBUG: Creating source node from audio element");
+        sourceNodeRef.current =
+          audioContextRef.current.createMediaElementSource(
+            audioElementRef.current
+          );
+        console.log("DEBUG: Connecting source node to analyzer");
+        sourceNodeRef.current.connect(analyserRef.current);
+        console.log("DEBUG: Connecting analyzer to destination");
+        analyserRef.current.connect(audioContextRef.current.destination);
+      } else {
+        console.log("DEBUG: Source node already exists, not creating new one");
+      }
+
+      // Start animation loop
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      console.log("DEBUG: Created data array with size", dataArray.length);
+
+      const updateAmplitude = () => {
+        if (!analyserRef.current) {
+          console.error("DEBUG: Analyzer not available for update");
+          return;
+        }
+
+        analyserRef.current.getByteFrequencyData(dataArray);
+
+        // Calculate average amplitude from frequency data
+        const average =
+          dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length;
+        const normalizedAmplitude = average / 256; // Normalize to 0-1 range
+
+        if (normalizedAmplitude > 0.01) {
+          console.log("DEBUG: Amplitude update", {
+            average,
+            normalizedAmplitude,
+          });
+        }
+
+        setAmplitude(normalizedAmplitude);
+        animationFrameRef.current = requestAnimationFrame(updateAmplitude);
+      };
+
+      updateAmplitude();
+    } catch (error) {
+      console.error("DEBUG: Error in visualization setup", error);
+    }
+  };
+
+  // Stop visualization
+  const stopVisualization = () => {
+    console.log("DEBUG: Stopping visualization");
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setAmplitude(0);
+  };
 
   // Convert base64 to Blob
   const base64ToBlob = (base64: string, mimeType: string) => {
@@ -69,6 +214,7 @@ export function SessionView() {
 
   // Convert text to speech
   const speakResponse = async (text: string) => {
+    console.log("DEBUG: Starting text-to-speech process");
     try {
       const response = await fetch("/api/text-to-speech", {
         method: "POST",
@@ -77,20 +223,36 @@ export function SessionView() {
       });
 
       const data = await response.json();
+      console.log("DEBUG: Received TTS response", {
+        hasAudioContent: !!data.audioContent,
+      });
 
       if (data.audioContent) {
         // Convert base64 to audio
         const audioBlob = base64ToBlob(data.audioContent, "audio/mp3");
         const audioUrl = URL.createObjectURL(audioBlob);
+        console.log("DEBUG: Created audio URL", audioUrl);
 
         // Play the audio
         if (audioElementRef.current) {
+          console.log("DEBUG: Setting up audio element for playback");
+          // Resume audio context if suspended (needed due to autoplay policy)
+          if (audioContextRef.current?.state === "suspended") {
+            console.log("DEBUG: Resuming suspended audio context");
+            await audioContextRef.current.resume();
+          }
+
           audioElementRef.current.src = audioUrl;
-          audioElementRef.current.play();
+          console.log("DEBUG: Starting audio playback");
+          await audioElementRef.current.play().catch((err) => {
+            console.error("DEBUG: Error playing audio", err);
+          });
+        } else {
+          console.error("DEBUG: Audio element not available for playback");
         }
       }
     } catch (error) {
-      console.error("Error with text-to-speech:", error);
+      console.error("DEBUG: Error with text-to-speech:", error);
       toast({
         title: "Text-to-Speech Error",
         description: "Failed to convert text to speech",
@@ -101,9 +263,11 @@ export function SessionView() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] overflow-hidden">
-      {/* Main content area - empty as requested */}
-      <div className="flex-1 overflow-auto">
-        {/* Display transcript and AI response here if needed */}
+      {/* DEBUG display */}
+
+      {/* Main content area with audio visualizer */}
+      <div className="flex-1 overflow-auto flex items-center justify-center">
+        <AudioVisualizer amplitude={amplitude} />
       </div>
 
       {/* Bottom microphone bar */}

@@ -29,7 +29,6 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
-    console.log("Recording state changed:", isRecording);
   }, [isRecording]);
 
   useEffect(() => {
@@ -40,7 +39,6 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
         mediaRecorder.stop();
       }
 
-      console.log("Component unmounting, cleaning up audio resources");
       stopVolumeMonitoring();
 
       if (audioContextRef.current) {
@@ -104,29 +102,20 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
 
   const startVolumeMonitoring = (stream: MediaStream) => {
     try {
-      console.log("Starting volume monitoring");
-
       const audioContext = new (window.AudioContext ||
         (window as any).webkitAudioContext)();
       audioContextRef.current = audioContext;
-      console.log("Audio context created:", audioContext.state);
 
       if (audioContext.state === "suspended") {
-        console.log("Resuming suspended audio context");
         audioContext.resume();
       }
 
       const source = audioContext.createMediaStreamSource(stream);
-      console.log("Media stream source created");
 
       const analyser = audioContext.createAnalyser();
       analyserRef.current = analyser;
       analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.4;
-      console.log(
-        "Analyser created with frequency bin count:",
-        analyser.frequencyBinCount
-      );
+      analyser.smoothingTimeConstant = 0.5;
 
       source.connect(analyser);
 
@@ -160,7 +149,6 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
         animationFrameRef.current = requestAnimationFrame(monitorVolume);
       };
 
-      console.log("Starting volume monitoring loop");
       monitorVolume();
     } catch (error) {
       console.error("Error setting up audio analysis:", error);
@@ -168,11 +156,9 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
   };
 
   const stopVolumeMonitoring = () => {
-    console.log("Stopping volume monitoring");
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
-      console.log("Animation frame cancelled");
     }
     setCurrentVolume(0);
   };
@@ -188,7 +174,6 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
     }
 
     try {
-      console.log("Starting recording");
       setIsRecording(true);
       isRecordingRef.current = true;
       audioChunksRef.current = [];
@@ -200,7 +185,6 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
           autoGainControl: true,
         },
       });
-      console.log("Microphone stream obtained");
 
       setTimeout(() => {
         startVolumeMonitoring(stream);
@@ -218,7 +202,6 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
       };
 
       recorder.onstop = async () => {
-        console.log("Recording stopped, cleaning up");
         isRecordingRef.current = false;
         stopVolumeMonitoring();
 
@@ -278,7 +261,6 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
   };
 
   const stopRecording = () => {
-    console.log("Stop recording called");
     isRecordingRef.current = false;
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
       mediaRecorder.stop();
@@ -378,7 +360,7 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
         {!isRecording ? (
           <div
             onClick={toggleRecording}
-            className="flex items-center h-14 px-2 pl-6 bg-primary rounded-full cursor-pointer"
+            className="flex items-center h-14 px-2 pl-6 bg-primary rounded-full cursor-pointer shadow-md"
           >
             <div className="flex-1 text-white">
               {isProcessing ? "Processing..." : "Tap to speak"}
@@ -390,10 +372,10 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
         ) : (
           <div
             onClick={stopRecording}
-            className="h-14 bg-primary rounded-full overflow-hidden relative flex items-center justify-center cursor-pointer"
+            className="h-14 bg-primary rounded-full overflow-hidden relative flex items-center justify-center cursor-pointer shadow-md"
           >
             <div
-              className="h-10 bg-white rounded-full transition-all duration-40"
+              className="h-10 bg-white rounded-full transition-all duration-30"
               style={{ width: getVolumeBarWidth() }}
             ></div>
           </div>
