@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Calendar, Clock, CheckCircle2, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -186,9 +187,10 @@ export function Dashboard() {
               ) : sessions.length > 0 ? (
                 <div className="space-y-2">
                   {sessions.slice(0, 2).map((session) => (
-                    <div
+                    <Link
                       key={session.id}
-                      className="flex justify-between items-center py-2 border-b last:border-0"
+                      href={`/dashboard/session/${session.id}`}
+                      className="flex justify-between items-center py-2  last:border-0 hover:bg-muted/50 rounded-md transition-colors"
                     >
                       <div>
                         <p className="font-medium">{session.topic}</p>
@@ -200,7 +202,7 @@ export function Dashboard() {
                         </div>
                       </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (
@@ -273,9 +275,10 @@ export function Dashboard() {
               ) : sessions.length > 0 ? (
                 <div className="space-y-2">
                   {sessions.map((session) => (
-                    <div
+                    <Link
                       key={session.id}
-                      className="flex justify-between items-center py-2 border-b last:border-0"
+                      href={`/dashboard/session/${session.id}`}
+                      className="flex justify-between items-center py-2  last:border-0 hover:bg-muted/50 rounded-md transition-colors"
                     >
                       <div>
                         <p className="font-medium">{session.topic}</p>
@@ -292,7 +295,7 @@ export function Dashboard() {
                         </span>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (
