@@ -3,6 +3,20 @@ import textToSpeech from "@google-cloud/text-to-speech";
 import fs from "fs";
 import path from "path";
 
+// Initialize client outside request handler (only runs once when module loads)
+let ttsClient;
+try {
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const credentials = JSON.parse(
+      fs.readFileSync(path.resolve(credentialsPath), "utf8")
+    );
+    ttsClient = new textToSpeech.TextToSpeechClient({ credentials });
+  }
+} catch (error) {
+  console.error("Error initializing Text-to-Speech client:", error);
+}
+
 export async function POST(request) {
   try {
     const { text, variant } = await request.json();
@@ -13,33 +27,19 @@ export async function POST(request) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
-    // Initialize Google client with credentials
-    let client;
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      // Read credentials from the file path in the environment variable
-      const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      const credentials = JSON.parse(
-        fs.readFileSync(path.resolve(credentialsPath), "utf8")
-      );
-
-      client = new textToSpeech.TextToSpeechClient({
-        credentials,
-      });
-    }
-    
     // Default voice configuration
     let voice = {
       languageCode: "en-US",
       ssmlGender: "FEMALE",
       name: "en-US-Chirp3-HD-Aoede",
     };
-    
+
     // Adjust voice based on variant if provided
     if (variant) {
       console.log(`Using variant: ${variant}`);
-      
+
       // Select voice based on specific variant values
-      switch(variant) {
+      switch (variant) {
         case "variant_base":
           voice.name = "en-US-Chirp3-HD-Aoede";
           break;
@@ -75,9 +75,9 @@ export async function POST(request) {
         speakingRate: 1.1,
       },
     };
-    
+
     // Performs the text-to-speech request
-    const [response] = await client.synthesizeSpeech(req);
+    const [response] = await ttsClient.synthesizeSpeech(req);
 
     // The response's audioContent is binary data that represents the
     // content of the audio file. Convert it to base64 for transmission
