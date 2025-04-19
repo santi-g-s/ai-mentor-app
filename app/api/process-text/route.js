@@ -5,11 +5,18 @@ import path from "path";
 
 export async function POST(request) {
   try {
-    const { input, variantName = "variant_inspiration" } = await request.json();
+    const { input, variantName } = await request.json();
 
     if (!input) {
       return NextResponse.json(
         { error: "Input text is required" },
+        { status: 400 }
+      );
+    }
+    
+    if (!variantName) {
+      return NextResponse.json(
+        { error: "Variant name is required" },
         { status: 400 }
       );
     }

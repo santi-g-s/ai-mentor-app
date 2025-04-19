@@ -407,10 +407,24 @@ export function SessionView() {
 
     try {
       // Process the text in parallel with speaking the filler
+      // Get the variant value from the selected profile
+      let variantName = "variant_base"; // Default
+      
+      // Map selected profile to variant
+      if (selectedProfile === "Kai") {
+        variantName = "variant_comfort";
+      } else if (selectedProfile === "Suki") {
+        variantName = "variant_solutions";
+      } else if (selectedProfile === "May") {
+        variantName = "variant_inspiration";
+      } else if (selectedProfile === "Tenzin") {
+        variantName = "variant_tough";
+      }
+      
       const response = await fetch("/api/process-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: text }),
+        body: JSON.stringify({ input: text, variantName }),
       });
 
       const data = await response.json();
@@ -485,10 +499,24 @@ export function SessionView() {
   const speakResponse = async (text: string) => {
     console.log("DEBUG: Starting text-to-speech process");
     try {
+      // Get the variant value from the selected profile
+      let variant = "variant_base"; // Default
+      
+      // Map selected profile to variant
+      if (selectedProfile === "Kai") {
+        variant = "variant_comfort";
+      } else if (selectedProfile === "Suki") {
+        variant = "variant_solutions";
+      } else if (selectedProfile === "May") {
+        variant = "variant_inspiration";
+      } else if (selectedProfile === "Tenzin") {
+        variant = "variant_tough";
+      }
+      
       const response = await fetch("/api/text-to-speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, variant }),
       });
 
       const data = await response.json();
