@@ -20,6 +20,9 @@ export function SessionView() {
   const [selectedProfile, setSelectedProfile] = useState("Robin");
   const [sessionId, setSessionId] = useState<string>("");
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<
+    "created" | "active" | "complete"
+  >("created");
 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -27,6 +30,43 @@ export function SessionView() {
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const { toast } = useToast();
+
+  // Complete session function
+  const completeSession = async () => {
+    if (sessionId && startTime) {
+      const endTime = new Date();
+      const durationInSeconds = Math.floor(
+        (endTime.getTime() - startTime.getTime()) / 1000
+      );
+
+      try {
+        await fetch(`/api/sessions/${sessionId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            duration: durationInSeconds,
+            transcript,
+            status: "complete",
+          }),
+        });
+
+        setSessionStatus("complete");
+        toast({
+          title: "Session completed",
+          description: `Session duration: ${durationInSeconds} seconds`,
+        });
+      } catch (error) {
+        console.error("Error completing session:", error);
+        toast({
+          title: "Error",
+          description: "Failed to complete session",
+          variant: "destructive",
+        });
+      }
+    }
+  };
 
   // Initialize session when component mounts
   useEffect(() => {
@@ -47,6 +87,7 @@ export function SessionView() {
             transcript: "",
             profile: selectedProfile,
             duration: 0,
+            status: "created",
           }),
         });
 
@@ -65,7 +106,7 @@ export function SessionView() {
 
     // When component unmounts, update the session with final data
     return () => {
-      if (sessionId && startTime) {
+      if (sessionId && startTime && sessionStatus !== "complete") {
         const endTime = new Date();
         const durationInSeconds = Math.floor(
           (endTime.getTime() - startTime.getTime()) / 1000
@@ -80,6 +121,7 @@ export function SessionView() {
           body: JSON.stringify({
             duration: durationInSeconds,
             transcript,
+            status: "complete",
           }),
         }).catch((error) => {
           console.error("Error updating session:", error);
@@ -269,6 +311,28 @@ export function SessionView() {
   const processText = async (text: string) => {
     if (!text) return;
 
+    // If this is the first message, update status to active
+    if (sessionStatus === "created") {
+      setSessionStatus("active");
+
+      // Update status in database
+      if (sessionId) {
+        try {
+          await fetch(`/api/sessions/${sessionId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              status: "active",
+            }),
+          });
+        } catch (error) {
+          console.error("Error updating session status:", error);
+        }
+      }
+    }
+
     // Append user's message to transcript with proper formatting
     const updatedTranscript = transcript
       ? `${transcript}\n\n<user>${text}</user>`
@@ -395,48 +459,65 @@ export function SessionView() {
         <AudioVisualizer amplitude={amplitude} />
       </div>
 
-      {/* Profile selection cards */}
-      <div className="px-4 py-2">
-        <div className="grid grid-cols-2 gap-2">
-          {/* Robin card (full width) */}
-          <div
-            className={`col-span-2 rounded-lg p-3 cursor-pointer transition-all shadow-sm border border-gray-200 ${
-              selectedProfile === "Robin" ? "bg-white" : "bg-bg-primary"
-            }`}
-            onClick={() => setSelectedProfile("Robin")}
-          >
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-semibold text-sm">Robin</p>
-                <p className="text-xs text-gray-600">Standard mentor</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Other profile cards (half width) */}
-          {[
-            { name: "Kai", description: "Comfort & Reassurance" },
-            { name: "Suki", description: "Problem solving" },
-            { name: "May", description: "Inspiration & Motivation" },
-            { name: "Tenzin", description: "Tough love" },
-          ].map((profile) => (
+      {sessionStatus === "created" && (
+        <div className="px-4 py-2">
+          <div className="grid grid-cols-2 gap-2">
+            {/* Robin card (full width) */}
             <div
-              key={profile.name}
-              className={`rounded-lg p-3 cursor-pointer transition-all shadow-sm border border-gray-200 ${
-                selectedProfile === profile.name ? "bg-white" : "bg-bg-primary"
+              className={`col-span-2 rounded-lg p-3 cursor-pointer transition-all shadow-sm border border-gray-200 ${
+                selectedProfile === "Robin" ? "bg-white" : "bg-bg-primary"
               }`}
-              onClick={() => setSelectedProfile(profile.name)}
+              onClick={() => setSelectedProfile("Robin")}
             >
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-semibold text-sm">{profile.name}</p>
-                  <p className="text-xs text-gray-600">{profile.description}</p>
+                  <p className="font-semibold text-sm">Robin</p>
+                  <p className="text-xs text-gray-600">Standard mentor</p>
                 </div>
               </div>
             </div>
-          ))}
+
+            {/* Other profile cards (half width) */}
+            {[
+              { name: "Kai", description: "Comfort & Reassurance" },
+              { name: "Suki", description: "Problem solving" },
+              { name: "May", description: "Inspiration & Motivation" },
+              { name: "Tenzin", description: "Tough love" },
+            ].map((profile) => (
+              <div
+                key={profile.name}
+                className={`rounded-lg p-3 cursor-pointer transition-all shadow-sm border border-gray-200 ${
+                  selectedProfile === profile.name
+                    ? "bg-white"
+                    : "bg-bg-primary"
+                }`}
+                onClick={() => setSelectedProfile(profile.name)}
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold text-sm">{profile.name}</p>
+                    <p className="text-xs text-gray-600">
+                      {profile.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* End session button (shown when session is active) */}
+      {sessionStatus === "active" && (
+        <div className="absolute top-4 right-4">
+          <button
+            onClick={completeSession}
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-sm font-medium transition-colors"
+          >
+            End Session
+          </button>
+        </div>
+      )}
 
       {/* Bottom microphone bar */}
       <MicrophoneBar onTranscriptReady={processText} />
