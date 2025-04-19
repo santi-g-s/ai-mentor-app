@@ -20,6 +20,9 @@ export function SessionView() {
   const [selectedProfile, setSelectedProfile] = useState("Robin");
   const [sessionId, setSessionId] = useState<string>("");
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<
+    "created" | "active" | "complete"
+  >("created");
 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -47,6 +50,7 @@ export function SessionView() {
             transcript: "",
             profile: selectedProfile,
             duration: 0,
+            status: "created",
           }),
         });
 
@@ -80,10 +84,13 @@ export function SessionView() {
           body: JSON.stringify({
             duration: durationInSeconds,
             transcript,
+            status: "complete",
           }),
         }).catch((error) => {
           console.error("Error updating session:", error);
         });
+
+        setSessionStatus("complete");
       }
     };
   }, []);
@@ -269,6 +276,28 @@ export function SessionView() {
   const processText = async (text: string) => {
     if (!text) return;
 
+    // If this is the first message, update status to active
+    if (sessionStatus === "created") {
+      setSessionStatus("active");
+
+      // Update status in database
+      if (sessionId) {
+        try {
+          await fetch(`/api/sessions/${sessionId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              status: "active",
+            }),
+          });
+        } catch (error) {
+          console.error("Error updating session status:", error);
+        }
+      }
+    }
+
     // Append user's message to transcript with proper formatting
     const updatedTranscript = transcript
       ? `${transcript}\n\n<user>${text}</user>`
@@ -395,48 +424,53 @@ export function SessionView() {
         <AudioVisualizer amplitude={amplitude} />
       </div>
 
-      {/* Profile selection cards */}
-      <div className="px-4 py-2">
-        <div className="grid grid-cols-2 gap-2">
-          {/* Robin card (full width) */}
-          <div
-            className={`col-span-2 rounded-lg p-3 cursor-pointer transition-all shadow-sm border border-gray-200 ${
-              selectedProfile === "Robin" ? "bg-white" : "bg-bg-primary"
-            }`}
-            onClick={() => setSelectedProfile("Robin")}
-          >
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-semibold text-sm">Robin</p>
-                <p className="text-xs text-gray-600">Standard mentor</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Other profile cards (half width) */}
-          {[
-            { name: "Kai", description: "Comfort & Reassurance" },
-            { name: "Suki", description: "Problem solving" },
-            { name: "May", description: "Inspiration & Motivation" },
-            { name: "Tenzin", description: "Tough love" },
-          ].map((profile) => (
+      {sessionStatus === "created" && (
+        <div className="px-4 py-2">
+          <div className="grid grid-cols-2 gap-2">
+            {/* Robin card (full width) */}
             <div
-              key={profile.name}
-              className={`rounded-lg p-3 cursor-pointer transition-all shadow-sm border border-gray-200 ${
-                selectedProfile === profile.name ? "bg-white" : "bg-bg-primary"
+              className={`col-span-2 rounded-lg p-3 cursor-pointer transition-all shadow-sm border border-gray-200 ${
+                selectedProfile === "Robin" ? "bg-white" : "bg-bg-primary"
               }`}
-              onClick={() => setSelectedProfile(profile.name)}
+              onClick={() => setSelectedProfile("Robin")}
             >
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-semibold text-sm">{profile.name}</p>
-                  <p className="text-xs text-gray-600">{profile.description}</p>
+                  <p className="font-semibold text-sm">Robin</p>
+                  <p className="text-xs text-gray-600">Standard mentor</p>
                 </div>
               </div>
             </div>
-          ))}
+
+            {/* Other profile cards (half width) */}
+            {[
+              { name: "Kai", description: "Comfort & Reassurance" },
+              { name: "Suki", description: "Problem solving" },
+              { name: "May", description: "Inspiration & Motivation" },
+              { name: "Tenzin", description: "Tough love" },
+            ].map((profile) => (
+              <div
+                key={profile.name}
+                className={`rounded-lg p-3 cursor-pointer transition-all shadow-sm border border-gray-200 ${
+                  selectedProfile === profile.name
+                    ? "bg-white"
+                    : "bg-bg-primary"
+                }`}
+                onClick={() => setSelectedProfile(profile.name)}
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold text-sm">{profile.name}</p>
+                    <p className="text-xs text-gray-600">
+                      {profile.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Bottom microphone bar */}
       <MicrophoneBar onTranscriptReady={processText} />
