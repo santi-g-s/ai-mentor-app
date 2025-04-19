@@ -5,9 +5,9 @@ import path from "path";
 
 export async function POST(request) {
   try {
-    const { text } = await request.json();
+    const { text, variant } = await request.json();
 
-    console.log("Text to speech:", text);
+    console.log("Text to speech:", text, "Variant:", variant);
 
     if (!text) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
@@ -26,23 +26,56 @@ export async function POST(request) {
         credentials,
       });
     }
+    
+    // Default voice configuration
+    let voice = {
+      languageCode: "en-US",
+      ssmlGender: "FEMALE",
+      name: "en-US-Chirp3-HD-Aoede",
+    };
+    
+    // Adjust voice based on variant if provided
+    if (variant) {
+      console.log(`Using variant: ${variant}`);
+      
+      // Select voice based on specific variant values
+      switch(variant) {
+        case "variant_base":
+          voice.name = "en-US-Chirp3-HD-Aoede";
+          break;
+        case "variant_comfort":
+          voice.name = "en-US-Chirp3-HD-Leda";
+          break;
+        case "variant_solutions":
+          voice.name = "en-US-Chirp3-HD-Orus";
+          break;
+        case "variant_inspiration":
+          voice.name = "en-US-Chirp3-HD-Kore";
+          break;
+        case "variant_tough":
+          voice.name = "en-US-Chirp3-HD-Charon";
+          break;
+        default:
+          // If variant includes custom voice specification
+          if (variant.includes("voice=")) {
+            voice.name = variant.split("voice=")[1];
+          }
+          break;
+      }
+    }
 
     // Construct the request
     const req = {
       input: { text: text },
-      // Select the language and SSML voice gender
-      voice: {
-        languageCode: "en-US",
-        ssmlGender: "FEMALE",
-        name: "en-US-Chirp3-HD-Aoede",
-      },
+      // Use the potentially modified voice configuration
+      voice: voice,
       // Select the type of audio encoding
       audioConfig: {
         audioEncoding: "MP3",
         speakingRate: 1.1,
       },
     };
-
+    
     // Performs the text-to-speech request
     const [response] = await client.synthesizeSpeech(req);
 

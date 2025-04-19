@@ -27,3 +27,8 @@ google_credentials.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
