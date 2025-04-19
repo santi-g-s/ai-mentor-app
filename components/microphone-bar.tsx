@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, Send } from "lucide-react";
 
 type MicrophoneBarProps = {
   onTranscriptReady: (transcript: string) => Promise<void>;
 };
 
 export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
+  const [textInput, setTextInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(
@@ -25,6 +26,7 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isRecordingRef = useRef<boolean>(false);
+  const textInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -337,16 +339,38 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
     }
   };
 
-  const toggleRecording = () => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
+  const getVolumeBarWidth = () => {
+    return `${currentVolume}%`;
+  };
+
+  const handleTextInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTextInput(e.target.value);
+  };
+
+  const handleTextInputSubmit = async () => {
+    if (textInput.trim() === "") return;
+
+    try {
+      setIsProcessing(true);
+      await onTranscriptReady(textInput.trim());
+      setTextInput("");
+    } catch (error: any) {
+      console.error("Error submitting text input:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit text",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const getVolumeBarWidth = () => {
-    return `${currentVolume}%`;
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleTextInputSubmit();
+    }
   };
 
   return (
@@ -357,19 +381,7 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
         </div>
       )}
       <div className="p-4">
-        {!isRecording ? (
-          <div
-            onClick={toggleRecording}
-            className="flex items-center h-14 px-2 pl-6 bg-primary rounded-full cursor-pointer shadow-md"
-          >
-            <div className="flex-1 text-white">
-              {isProcessing ? "Processing..." : "Tap to speak"}
-            </div>
-            <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center">
-              <Mic className="h-5 w-5 text-primary" />
-            </div>
-          </div>
-        ) : (
+        {isRecording ? (
           <div
             onClick={stopRecording}
             className="h-14 bg-primary rounded-full overflow-hidden relative flex items-center justify-center cursor-pointer shadow-md"
@@ -378,6 +390,47 @@ export function MicrophoneBar({ onTranscriptReady }: MicrophoneBarProps) {
               className="h-10 bg-white rounded-full transition-all duration-30"
               style={{ width: getVolumeBarWidth() }}
             ></div>
+          </div>
+        ) : textInput ? (
+          <div className="flex items-center h-14 pr-2 pl-6 bg-primary rounded-full shadow-md overflow-hidden">
+            <input
+              ref={textInputRef}
+              type="text"
+              value={textInput}
+              onChange={handleTextInputChange}
+              onKeyDown={handleKeyDown}
+              className="flex-1 h-10 bg-transparent text-white outline-none"
+              disabled={isProcessing}
+            />
+            <button
+              onClick={handleTextInputSubmit}
+              disabled={isProcessing || textInput.trim() === ""}
+              className="h-10 w-10 rounded-full bg-white flex items-center justify-center"
+            >
+              <Send className="h-5 w-5 text-primary" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center h-14 bg-primary rounded-full shadow-md overflow-hidden">
+            <input
+              ref={textInputRef}
+              type="text"
+              value={textInput}
+              onChange={handleTextInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Type..."
+              className="flex-1 h-full px-6 bg-transparent text-white outline-none placeholder:text-white/70"
+              disabled={isProcessing}
+            />
+            <div className="px-2">
+              <button
+                onClick={startRecording}
+                disabled={isProcessing}
+                className="h-10 px-4 py-2 rounded-full bg-white text-primary font-medium flex items-center shadow-sm"
+              >
+                Speak <Mic className="h-4 w-4 ml-2" />
+              </button>
+            </div>
           </div>
         )}
       </div>
