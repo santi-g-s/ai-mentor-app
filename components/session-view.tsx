@@ -1,195 +1,413 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { AnimatedBlob } from "./animated-blob"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { getSpeechRecognition } from "@/lib/speech-recognition"
-import { useToast } from "@/hooks/use-toast"
+import { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { Mic, MicOff } from "lucide-react";
 
 export function SessionView() {
-  const [isListening, setIsListening] = useState(false)
-  const [transcript, setTranscript] = useState("")
-  const [response, setResponse] = useState("")
-  const [isSupported, setIsSupported] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [interimTranscript, setInterimTranscript] = useState("")
-  const [hasError, setHasError] = useState(false)
-  const { toast } = useToast()
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [response, setResponse] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(
+    null
+  );
+  const [permissionStatus, setPermissionStatus] =
+    useState<PermissionState>("prompt");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  // Initialize speech recognition
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  const { toast } = useToast();
+
+  // Initialize audio and check permissions
   useEffect(() => {
-    const speechRecognition = getSpeechRecognition()
-
-    // Check if speech recognition is supported
-    setIsSupported(speechRecognition.isSupported())
-
-    // Set up event handlers
-    speechRecognition.setOnTranscriptChange((text) => {
-      setInterimTranscript(text)
-    })
-
-    speechRecognition.setOnStatusChange((status) => {
-      setIsListening(status)
-      // If listening stopped unexpectedly, also stop processing
-      if (!status) {
-        setIsProcessing(false)
+    if (typeof window !== "undefined") {
+      // Create audio element for playback
+      if (!audioElementRef.current) {
+        const audioEl = new Audio();
+        audioElementRef.current = audioEl;
       }
-    })
 
-    speechRecognition.setOnError((error) => {
-      setIsProcessing(false)
-      setHasError(true)
-      toast({
-        title: "Speech Recognition Error",
-        description: error,
-        variant: "destructive",
-      })
-    })
+      // Check microphone permission status
+      checkMicrophonePermission();
+    }
 
-    // Clean up
+    // Cleanup function
     return () => {
-      if (isListening) {
-        speechRecognition.stop()
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+    };
+  }, []);
+
+  // Function to check microphone permission
+  const checkMicrophonePermission = async () => {
+    try {
+      // Check if the browser supports permissions API
+      if (navigator.permissions && navigator.permissions.query) {
+        const result = await navigator.permissions.query({
+          name: "microphone" as PermissionName,
+        });
+
+        setPermissionStatus(result.state);
+
+        // Listen for changes to permission state
+        result.onchange = () => {
+          setPermissionStatus(result.state);
+          if (result.state === "denied") {
+            setErrorMessage(
+              "Microphone access was denied. Please allow access in your browser settings."
+            );
+            toast({
+              title: "Microphone access denied",
+              description:
+                "Please allow microphone access in your browser settings.",
+              variant: "destructive",
+            });
+          } else if (result.state === "granted") {
+            setErrorMessage("");
+          }
+        };
+      }
+    } catch (error) {
+      console.log("Permission query not supported");
+    }
+  };
+
+  // Request microphone permission explicitly
+  const requestMicrophonePermission = async () => {
+    try {
+      setErrorMessage("");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stop the stream immediately - we just want to request permission
+      stream.getTracks().forEach((track) => track.stop());
+      setPermissionStatus("granted");
+      return true;
+    } catch (error) {
+      console.error("Error requesting microphone permission:", error);
+      setPermissionStatus("denied");
+      setErrorMessage(
+        "Microphone access was denied. Please allow access in your browser settings."
+      );
+      toast({
+        title: "Microphone access denied",
+        description: "Please allow microphone access in your browser settings.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  // Convert base64 to Blob
+  const base64ToBlob = (base64: string, mimeType: string) => {
+    const byteCharacters = atob(base64);
+    const byteArrays = [];
+
+    for (let i = 0; i < byteCharacters.length; i += 512) {
+      const slice = byteCharacters.slice(i, i + 512);
+      const byteNumbers = new Array(slice.length);
+
+      for (let j = 0; j < slice.length; j++) {
+        byteNumbers[j] = slice.charCodeAt(j);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+      byteArrays.push(byteArray);
+    }
+
+    return new Blob(byteArrays, { type: mimeType });
+  };
+
+  // Start recording
+  const startRecording = async () => {
+    setErrorMessage("");
+
+    // First request/check permissions
+    if (permissionStatus !== "granted") {
+      const permissionGranted = await requestMicrophonePermission();
+      if (!permissionGranted) {
+        return;
       }
     }
-  }, [toast])
 
-  const toggleListening = async () => {
-    const speechRecognition = getSpeechRecognition()
+    try {
+      setTranscript("");
+      setResponse("");
+      setIsRecording(true);
+      audioChunksRef.current = [];
 
-    // Reset error state when trying again
-    setHasError(false)
+      // Request microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
 
-    if (!isListening) {
-      // Start listening
-      speechRecognition.reset()
-      setTranscript("")
-      setResponse("")
+      // Create MediaRecorder instance
+      const recorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+      setMediaRecorder(recorder);
 
-      try {
-        // Show a loading state while we request permissions
-        setIsProcessing(true)
-
-        const started = await speechRecognition.start()
-
-        setIsProcessing(false)
-
-        if (!started) {
-          setHasError(true)
-          toast({
-            title: "Could not start speech recognition",
-            description: "Please check microphone permissions and try again",
-            variant: "destructive",
-          })
+      // Collect audio chunks
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
         }
-      } catch (error) {
-        setIsProcessing(false)
-        setHasError(true)
+      };
+
+      // When recording stops, send to speech-to-text
+      recorder.onstop = async () => {
+        // Release microphone
+        stream.getTracks().forEach((track) => track.stop());
+
+        // Process audio data if we have any
+        if (audioChunksRef.current.length > 0) {
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: recorder.mimeType,
+          });
+          await transcribeAudio(audioBlob);
+        }
+      };
+
+      // Handle recorder errors
+      recorder.onerror = (event) => {
+        console.error("Recorder error:", event.error);
+        setErrorMessage(
+          `Recording error: ${event.error.message || event.error.name}`
+        );
+        setIsRecording(false);
+        stream.getTracks().forEach((track) => track.stop());
         toast({
-          title: "Speech Recognition Error",
-          description: error instanceof Error ? error.message : "Unknown error occurred",
+          title: "Recording Error",
+          description: `Error: ${event.error.message || event.error.name}`,
           variant: "destructive",
-        })
+        });
+      };
+
+      // Start recording
+      recorder.start(1000); // Collect data in 1-second chunks
+    } catch (error: any) {
+      console.error("Error starting recording:", error);
+      setIsRecording(false);
+
+      if (error.name === "NotAllowedError") {
+        setErrorMessage(
+          "Microphone access was denied. Please allow access in your browser settings."
+        );
+        setPermissionStatus("denied");
+      } else if (error.name === "NotFoundError") {
+        setErrorMessage(
+          "No microphone found. Please connect a microphone and try again."
+        );
+      } else {
+        setErrorMessage(`Error: ${error.message || error.name}`);
       }
-    } else {
-      // Stop listening and process the transcript
-      const finalTranscript = speechRecognition.stop()
-      setTranscript(finalTranscript)
-      setInterimTranscript("")
 
-      if (finalTranscript) {
-        // Process the transcript
-        setIsProcessing(true)
+      toast({
+        title: "Recording Error",
+        description: error.message || "Failed to start recording",
+        variant: "destructive",
+      });
+    }
+  };
 
-        // Simulate AI response - in a real app, you would send this to your AI service
-        setTimeout(() => {
-          setIsProcessing(false)
-          setResponse(generateResponse(finalTranscript))
-        }, 1500)
+  // Stop recording
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  // Send audio to speech-to-text API
+  const transcribeAudio = async (audioBlob: Blob) => {
+    try {
+      setIsProcessing(true);
+
+      // Create a loading message
+      setTranscript("Transcribing your audio...");
+
+      // Convert Blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+
+      reader.onloadend = async () => {
+        try {
+          // Extract base64 string (remove data URL prefix)
+          const base64Audio = (reader.result as string).split(",")[1];
+
+          // Send to our API endpoint
+          const response = await fetch("/api/speech-to-text", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              audioContent: base64Audio,
+              mimeType: audioBlob.type,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (data.transcript) {
+            setTranscript(data.transcript);
+            await processText(data.transcript);
+          } else if (data.error) {
+            setErrorMessage(`Transcription error: ${data.error}`);
+            setTranscript(""); // Clear the "Transcribing..." message
+            toast({
+              title: "Transcription Error",
+              description: data.error,
+              variant: "destructive",
+            });
+          } else {
+            setErrorMessage(
+              "No speech detected. Please try again and speak clearly."
+            );
+            setTranscript(""); // Clear the "Transcribing..." message
+            toast({
+              title: "No Speech Detected",
+              description: "Please try again and speak clearly.",
+              variant: "destructive",
+            });
+          }
+        } catch (err: any) {
+          console.error("Error in transcription process:", err);
+          setErrorMessage(`Transcription failed: ${err.message}`);
+          setTranscript(""); // Clear the "Transcribing..." message
+          toast({
+            title: "Transcription Failed",
+            description: err.message,
+            variant: "destructive",
+          });
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+    } catch (error: any) {
+      console.error("Error transcribing audio:", error);
+      setErrorMessage("Failed to transcribe audio. Please try again.");
+      setTranscript(""); // Clear any "Transcribing..." message
+      setIsProcessing(false);
+      toast({
+        title: "Transcription Error",
+        description: "Failed to transcribe audio. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Process transcript with AI
+  const processText = async (text: string) => {
+    if (!text) return;
+
+    try {
+      const response = await fetch("/api/process-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: text }),
+      });
+
+      const data = await response.json();
+      setResponse(data.output);
+
+      // Use TTS for the response
+      await speakResponse(data.output);
+    } catch (error: any) {
+      console.error("Error processing text:", error);
+      setResponse("An error occurred.");
+      toast({
+        title: "Processing Error",
+        description: error.message || "Failed to process text",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Convert text to speech
+  const speakResponse = async (text: string) => {
+    try {
+      const response = await fetch("/api/text-to-speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await response.json();
+
+      if (data.audioContent) {
+        // Convert base64 to audio
+        const audioBlob = base64ToBlob(data.audioContent, "audio/mp3");
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        // Play the audio
+        if (audioElementRef.current) {
+          audioElementRef.current.src = audioUrl;
+          audioElementRef.current.play();
+        }
       }
+    } catch (error) {
+      console.error("Error with text-to-speech:", error);
+      toast({
+        title: "Text-to-Speech Error",
+        description: "Failed to convert text to speech",
+        variant: "destructive",
+      });
     }
-  }
+  };
 
-  // Simple response generator - replace with actual AI integration
-  const generateResponse = (text: string) => {
-    if (text.toLowerCase().includes("overwhelm") || text.toLowerCase().includes("workload")) {
-      return "Based on what you've shared about feeling overwhelmed, I recommend focusing on these key areas: time management, prioritization, and delegation. Would you like me to elaborate on any of these?"
-    } else if (text.toLowerCase().includes("stress") || text.toLowerCase().includes("anxious")) {
-      return "I hear that you're feeling stressed. Consider implementing mindfulness practices, regular breaks, and setting boundaries. Which of these would you like to explore first?"
-    } else if (text.toLowerCase().includes("career") || text.toLowerCase().includes("job")) {
-      return "Career development is important. Let's identify your strengths, areas for growth, and potential opportunities that align with your values. What aspect of your career would you like to focus on?"
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
     } else {
-      return "Thank you for sharing. I've noted your thoughts. Is there a specific area where you'd like guidance or support?"
+      startRecording();
     }
-  }
+  };
 
   return (
-    <div className="flex flex-col items-center justify-between h-full py-8">
-      <div className="w-full">
-        <h1 className="text-2xl font-bold text-center mb-2">AI Mentor</h1>
-        <p className="text-muted-foreground text-center mb-8">Your personal guide for growth and development</p>
-      </div>
-
-      <div className="flex-1 flex items-center justify-center w-full">
-        <AnimatedBlob
-          isListening={isListening}
-          onToggle={toggleListening}
-          isSupported={isSupported}
-          isProcessing={isProcessing}
-          hasError={hasError}
-        />
-      </div>
-
-      <div className="w-full space-y-4 mt-8">
-        {interimTranscript && isListening && (
-          <Card className="p-4 bg-secondary border-dashed">
-            <p className="text-sm text-muted-foreground italic">{interimTranscript}</p>
-          </Card>
-        )}
-
-        {transcript && !isListening && (
-          <Card className="p-4 bg-secondary">
-            <p className="text-sm">{transcript}</p>
-          </Card>
-        )}
-
-        {response && (
-          <Card className="p-4 bg-primary text-primary-foreground">
-            <p className="text-sm">{response}</p>
-          </Card>
-        )}
-
-        {(transcript || response) && !isListening && (
-          <div className="flex justify-end space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setTranscript("")
-                setResponse("")
-                setInterimTranscript("")
-              }}
-            >
-              New Session
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => {
-                // In a real app, this would save the session
-                toast({
-                  title: "Session Saved",
-                  description: "Your session has been saved to your dashboard",
-                })
-                window.location.href = "/dashboard"
-              }}
-            >
-              Save Session
-            </Button>
+    <div className="flex flex-col h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] overflow-hidden">
+      {/* Main content area - empty as requested */}
+      <div className="flex-1 overflow-auto">
+        {errorMessage && (
+          <div className="m-4 p-3 bg-red-50 border-l-4 border-red-500 text-red-700">
+            {errorMessage}
           </div>
         )}
       </div>
+
+      {/* Bottom bar */}
+      <div className="p-4">
+        <div className="flex items-center gap-2 p-2 bg-primary rounded-full">
+          <div className="flex-1 text-white px-4">
+            {isRecording
+              ? "Listening..."
+              : isProcessing
+              ? "Processing..."
+              : "Tap to speak"}
+          </div>
+          <Button
+            onClick={toggleRecording}
+            disabled={isProcessing}
+            variant="ghost"
+            className="rounded-full h-10 w-10 p-0 bg-white"
+          >
+            {isRecording ? (
+              <MicOff className="h-5 w-5 text-red-500" />
+            ) : (
+              <Mic className="h-5 w-5 text-primary" />
+            )}
+          </Button>
+        </div>
+      </div>
     </div>
-  )
+  );
 }
