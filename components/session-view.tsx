@@ -315,6 +315,28 @@ export function SessionView() {
     }
   };
 
+  // Check if text is a simple greeting
+  const isGreeting = (text: string): boolean => {
+    const greetingPatterns = [
+      /^hi\b/i,
+      /^hello\b/i,
+      /^hey\b/i,
+      /^greetings/i,
+      /^howdy\b/i,
+      /^good morning\b/i,
+      /^good afternoon\b/i,
+      /^good evening\b/i,
+      /^what's up\b/i,
+      /^sup\b/i,
+    ];
+
+    // Clean the text (remove punctuation and extra spaces)
+    const cleanText = text.trim().toLowerCase();
+
+    // Check if the clean text matches any greeting pattern
+    return greetingPatterns.some((pattern) => pattern.test(cleanText));
+  };
+
   // Process transcript with AI
   const processText = async (text: string) => {
     if (!text) return;
@@ -368,7 +390,23 @@ export function SessionView() {
       }
     }
 
+    // Play a filler message while waiting for the main response
+    const fillerPhrases = [
+      "Hmm, let me think...",
+      "Let me see.....",
+      "hmmm, I see...",
+    ];
+    const randomFiller =
+      fillerPhrases[Math.floor(Math.random() * fillerPhrases.length)];
+
+    // Start speaking the filler phrase only if it's not a greeting
+    let fillerPromise;
+    if (!isGreeting(text)) {
+      fillerPromise = speakResponse(randomFiller);
+    }
+
     try {
+      // Process the text in parallel with speaking the filler
       const response = await fetch("/api/process-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -399,7 +437,37 @@ export function SessionView() {
         }
       }
 
-      // Use TTS for the response
+      // Wait for filler audio to finish naturally if it's playing
+      if (fillerPromise && audioElementRef.current) {
+        // Check if audio is still playing
+        if (!audioElementRef.current.ended && !audioElementRef.current.paused) {
+          console.log("DEBUG: Waiting for filler audio to finish naturally");
+
+          // Create a promise that resolves when the audio ends
+          await new Promise((resolve) => {
+            const onEnded = () => {
+              console.log("DEBUG: Filler audio finished naturally");
+              audioElementRef.current?.removeEventListener("ended", onEnded);
+              resolve(null);
+            };
+
+            audioElementRef.current?.addEventListener("ended", onEnded, {
+              once: true,
+            });
+
+            // Add a safety timeout in case the audio doesn't trigger the ended event
+            setTimeout(() => {
+              console.log("DEBUG: Safety timeout for filler audio");
+              audioElementRef.current?.removeEventListener("ended", onEnded);
+              resolve(null);
+            }, 5000); // 5 second safety timeout
+          });
+        } else {
+          console.log("DEBUG: Filler audio already finished");
+        }
+      }
+
+      // Now play the actual response (no need to call stopAudio since we waited for it to finish)
       await speakResponse(data.output);
     } catch (error: any) {
       console.error("Error processing text:", error);
