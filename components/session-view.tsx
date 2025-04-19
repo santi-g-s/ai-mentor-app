@@ -33,6 +33,9 @@ export function SessionView() {
 
   // Complete session function
   const completeSession = async () => {
+    // Stop any playing audio
+    stopAudio();
+
     if (sessionId && startTime) {
       const endTime = new Date();
       const durationInSeconds = Math.floor(
@@ -57,6 +60,12 @@ export function SessionView() {
           title: "Session completed",
           description: `Session duration: ${durationInSeconds} seconds`,
         });
+
+        // Reset state and create a new session
+        setTranscript("");
+        setResponse("");
+        setAmplitude(0);
+        initSession();
       } catch (error) {
         console.error("Error completing session:", error);
         toast({
@@ -68,40 +77,42 @@ export function SessionView() {
     }
   };
 
+  // Initialize a new session
+  const initSession = async () => {
+    const id = uuidv4();
+    const timestamp = new Date().toISOString();
+
+    try {
+      // Create a new session in Supabase
+      const response = await fetch("/api/sessions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id,
+          timestamp,
+          transcript: "",
+          profile: selectedProfile,
+          duration: 0,
+          status: "created",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create session");
+      }
+
+      setSessionId(id);
+      setStartTime(new Date());
+      setSessionStatus("created");
+    } catch (error) {
+      console.error("Error creating session:", error);
+    }
+  };
+
   // Initialize session when component mounts
   useEffect(() => {
-    const initSession = async () => {
-      const id = uuidv4();
-      const timestamp = new Date().toISOString();
-
-      try {
-        // Create a new session in Supabase
-        const response = await fetch("/api/sessions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            id,
-            timestamp,
-            transcript: "",
-            profile: selectedProfile,
-            duration: 0,
-            status: "created",
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to create session");
-        }
-
-        setSessionId(id);
-        setStartTime(new Date());
-      } catch (error) {
-        console.error("Error creating session:", error);
-      }
-    };
-
     initSession();
 
     // When component unmounts, update the session with final data
