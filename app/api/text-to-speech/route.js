@@ -34,12 +34,12 @@ export async function POST(request) {
       voice: {
         languageCode: "en-US",
         ssmlGender: "FEMALE",
-        name: "en-US-Neural2-F",
+        name: "en-US-Chirp3-HD-Aoede",
       },
       // Select the type of audio encoding
       audioConfig: {
         audioEncoding: "MP3",
-        speakingRate: 1.3,
+        speakingRate: 1.1,
       },
     };
 

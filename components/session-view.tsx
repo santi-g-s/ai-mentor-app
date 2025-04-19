@@ -438,34 +438,35 @@ export function SessionView() {
       }
 
       // Wait for filler audio to finish naturally if it's playing
-      if (fillerPromise && audioElementRef.current) {
-        // Check if audio is still playing
-        if (!audioElementRef.current.ended && !audioElementRef.current.paused) {
-          console.log("DEBUG: Waiting for filler audio to finish naturally");
+      // if (fillerPromise && audioElementRef.current) {
+      //   // Check if audio is still playing
+      //   if (!audioElementRef.current.ended && !audioElementRef.current.paused) {
+      //     console.log("DEBUG: Waiting for filler audio to finish naturally");
 
-          // Create a promise that resolves when the audio ends
-          await new Promise((resolve) => {
-            const onEnded = () => {
-              console.log("DEBUG: Filler audio finished naturally");
-              audioElementRef.current?.removeEventListener("ended", onEnded);
-              resolve(null);
-            };
+      //     // Create a promise that resolves when the audio ends
+      //     await new Promise((resolve) => {
+      //       const onEnded = () => {
+      //         console.log("DEBUG: Filler audio finished naturally");
+      //         audioElementRef.current?.removeEventListener("ended", onEnded);
+      //         resolve(null);
+      //       };
 
-            audioElementRef.current?.addEventListener("ended", onEnded, {
-              once: true,
-            });
+      //       audioElementRef.current?.addEventListener("ended", onEnded, {
+      //         once: true,
+      //       });
 
-            // Add a safety timeout in case the audio doesn't trigger the ended event
-            setTimeout(() => {
-              console.log("DEBUG: Safety timeout for filler audio");
-              audioElementRef.current?.removeEventListener("ended", onEnded);
-              resolve(null);
-            }, 5000); // 5 second safety timeout
-          });
-        } else {
-          console.log("DEBUG: Filler audio already finished");
-        }
-      }
+      //       // Add a safety timeout in case the audio doesn't trigger the ended event
+      //       setTimeout(() => {
+      //         console.log("DEBUG: Safety timeout for filler audio");
+      //         audioElementRef.current?.removeEventListener("ended", onEnded);
+      //         resolve(null);
+      //       }, 5000); // 5 second safety timeout
+      //     });
+      //   } else {
+      //     console.log("DEBUG: Filler audio already finished");
+      //   }
+      // }
+      stopAudio();
 
       // Now play the actual response (no need to call stopAudio since we waited for it to finish)
       await speakResponse(data.output);
