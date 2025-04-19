@@ -5,11 +5,7 @@ import path from "path";
 
 export async function POST(request) {
   try {
-    const response2 = await fetch("http://127.0.0.1:8000/api/hello");
-    const data2 = await response2.json();
-    console.log(data2); // { message: "Hello from FastAPI!" }
-
-    const { input, variantName = "tough" } = await request.json();
+    const { input, variantName = "variant_inspiration" } = await request.json();
 
     if (!input) {
       return NextResponse.json(
@@ -21,50 +17,26 @@ export async function POST(request) {
     console.log("Input to process-text:", input);
     console.log("Using variant:", variantName);
 
-    // Load the variant JSON file
-    const variantPath = path.join(
-      process.cwd(),
-      "variants",
-      `variant_${variantName}.json`
-    );
-    console.log(variantPath);
+    // Call the FastAPI backend process-text endpoint
+    const backendResponse = await fetch("http://127.0.0.1:8000/api/process-text", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        input_text: input,
+        variant: variantName,
+      }),
+    });
+    const backendData = await backendResponse.json();
+    console.log("Backend response:", backendData);
 
-    if (!fs.existsSync(variantPath)) {
-      return NextResponse.json(
-        { error: `Variant '${variantName}' not found` },
-        { status: 400 }
-      );
+    // Check if backend request was successful
+    if (backendData.status === "success" && backendData.response) {
+      return NextResponse.json({ output: backendData.response });
     }
 
-    const variantData = JSON.parse(fs.readFileSync(variantPath, "utf8"));
-    console.log(variantData);
-
-    // Initialize the OpenAI client but configure for Goodfire
-    const openai = new OpenAI({
-      apiKey: process.env.GOODFIRE_API_KEY,
-      baseURL: "https://api.goodfire.ai/api/inference/v1",
-    });
-
-    // Generate response with streaming for lower latency
-    let fullResponse = "";
-    const stream = await openai.chat.completions.create({
-      model: variantData.base_model,
-      messages: [
-        {
-          role: "user",
-          content: input,
-        },
-      ],
-      stream: true,
-      max_tokens: 1000, // Lower token count for faster responses
-      variant: variantData, // Pass the variant data directly in the request
-    });
-
-    for await (const chunk of stream) {
-      fullResponse += chunk.choices[0].delta.content || "";
-    }
-
-    return NextResponse.json({ output: fullResponse });
+    return NextResponse.json({ error: "Failed to process text with AI" }, { status: 500 });
   } catch (error) {
     console.error("Error processing with Goodfire AI:", error);
     return NextResponse.json(
